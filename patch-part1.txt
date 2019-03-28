@@ -1,0 +1,39 @@
+#!/bin/bash
+
+#take AMI backup of mentioned servers
+i=0
+j=0
+TRUE=1
+for i in $(cat /home/ec2-user/instances); do
+    aws ec2 create-image --no-reboot --instance-id $i --name "My server$i" --description "An AMI for my server"
+#   aws ec2 start-instances --instance-ids $i
+#    check instance status and stop start if not 2/2 ( while [ aws ec2 describe-instance-status ])
+done
+
+#chek AMI are ready
+
+while [ $TRUE  ]
+do
+      sleep 10s
+      aws ec2 describe-images --owners self | grep -i pending
+      if [ $? != 0 ]
+      then
+         break
+      fi
+done
+
+
+sleep 2
+
+#idnetify between linux or windows using grep platform
+for j in $(cat /home/ec2-user/instances); do
+#    aws ec2 describe-instances --instance-ids $j | grep -i platform
+#        if [ $? -eq 0 ]
+#        then #os is linux
+            IP=$(aws ec2 describe-instances --instance-ids $j | grep -m 1 -i privateipaddress | cut -d '"' -f 4) # grep ip address
+            KEYNAME=$(aws ec2 describe-instances --instance-ids $j | grep -i keyname | cut -d '"' -f 4 | uniq)
+            KEYPAIR=$(find / -name $KEYNAME.pem) #find location of keypair in
+            ssh -T -vvv  -i $KEYPAIR ec2-user@$IP 'bash -s' < /home/ec2-user/patch.v3.sh #pass script as input
+#        fi
+            sleep 10
+done
